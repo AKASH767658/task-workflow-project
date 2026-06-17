@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+    <h1>All Tasks</h1>
+
+    <!-- CREATE TASK POPUP BUTTON -->
+    <button class="btn btn-primary" onclick="openCreatePopup()">
+        + Create Task
+    </button>
+</div>
+
+
+{% if tasks %}
+<div class="task-grid">
+
+{% for task in tasks %}
+<div class="task-card">
+
+    <div class="card-header">
+        <span class="task-title">{{ task.title }}</span>
+
+        <span class="badge priority-{{ task.priority|lower }}">
+            {{ task.priority }}
+        </span>
+    </div>
+
+    <p>{{ task.description }}</p>
+
+    <div class="task-meta">
+        <span class="status-badge status-{{ task.status|replace(' ','-')|lower }}">
+            {{ task.status }}
+        </span>
+
+        <span>📅 Due: {{ task.due_date }}</span>
+    </div>
+
+    <div class="task-meta">
+        <span>
+            👤 Assignee:
+            <strong>{{ task.assignee }}</strong>
+        </span>
+
+        <span>
+            🔍 Reviewer:
+            <strong>{{ task.reviewer }}</strong>
+        </span>
+    </div>
+
+    <div class="task-meta small">
+        <span>Created: {{ task.created_date }}</span>
+        <span>Updated: {{ task.updated_date }}</span>
+    </div>
+
+
+    <!-- ACTION BUTTONS -->
+    <div class="card-actions">
+
+        <a href="{{ url_for('task_detail', task_id=task.id) }}"
+           class="btn btn-secondary">
+            View Details
+        </a>
+
+        {% if task.status == "To Do" and current_user == task.assignee %}
+
+            <form method="POST"
+                  action="{{ url_for('start_task', task_id=task.id) }}"
+                  style="display:inline">
+
+                <button class="btn btn-primary">
+                    Start Task
+                </button>
+
+            </form>
+
+        {% elif task.status == "In Progress" and current_user == task.assignee %}
+
+            <form method="POST"
+                  action="{{ url_for('send_to_review', task_id=task.id) }}"
+                  style="display:inline">
+
+                <button class="btn btn-warning">
+                    Send to Review
+                </button>
+
+            </form>
+
+        {% elif task.status == "In Review" and current_user == task.reviewer %}
+
+            <a href="{{ url_for('review_tasks') }}"
+               class="btn btn-info">
+                Review Now
+            </a>
+
+        {% endif %}
+
+    </div>
+
+</div>
+{% endfor %}
+
+</div>
+
+{% else %}
+
+<p class="empty-msg">
+    No tasks yet.
+</p>
+
+{% endif %}
+
+
+
+<!-- CREATE TASK POPUP -->
+
+<div id="createModal" class="modal">
+
+    <div class="modal-content">
+
+        <span class="close"
+              onclick="closeCreatePopup()">
+            &times;
+        </span>
+
+        <h2>Create New Task</h2>
+
+        <form method="POST"
+              action="{{ url_for('create_task') }}">
+
+            <input type="text"
+                   name="title"
+                   placeholder="Task Title"
+                   required>
+
+            <textarea name="description"
+                      placeholder="Description"
+                      required></textarea>
+
+            <select name="priority" required>
+                <option value="">Select Priority</option>
+                <option>Low</option>
+                <option>Medium</option>
+                <option>High</option>
+            </select>
+
+            <input type="text"
+                   name="assignee"
+                   placeholder="Assignee"
+                   required>
+
+            <input type="text"
+                   name="reviewer"
+                   placeholder="Reviewer"
+                   required>
+
+            <input type="date"
+                   name="due_date"
+                   required>
+
+            <br><br>
+
+            <button type="submit"
+                    class="btn btn-primary">
+                Create Task
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+
+<script>
+
+function openCreatePopup() {
+    document.getElementById("createModal").style.display = "block";
+}
+
+function closeCreatePopup() {
+    document.getElementById("createModal").style.display = "none";
+}
+
+window.onclick = function(event) {
+
+    let modal = document.getElementById("createModal");
+
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+}
+
+</script>
+
+
+
+<!-- PAGINATION -->
+
+<div class="pagination">
+
+    {% if has_prev %}
+        <a href="{{ url_for('all_tasks', page=page-1) }}"
+           class="btn btn-secondary">
+            ← Previous
+        </a>
+    {% endif %}
+
+    <span class="page-number">
+        Page {{ page }}
+    </span>
+
+    {% if has_next %}
+        <a href="{{ url_for('all_tasks', page=page+1) }}"
+           class="btn btn-primary">
+            Next →
+        </a>
+    {% endif %}
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Tasks Assigned For My Review</h1>
+<p class="subtitle">You are reviewing as: <strong>{{ current_user }}</strong></p>
+
+{% if tasks %}
+<div class="task-grid">
+
+{% for task in tasks %}
+<div class="task-card review-card">
+
+    <div class="card-header">
+        <span class="task-title">{{ task.title }}</span>
+        <span class="badge priority-{{ task.priority|lower }}">
+            {{ task.priority }}
+        </span>
+    </div>
+
+    <p>{{ task.description }}</p>
+
+    <div class="task-meta">
+        <span class="status-badge status-in-review">In Review</span>
+        <span>Due: {{ task.due_date }}</span>
+        <span>Assignee: <strong>{{ task.assignee }}</strong></span>
+    </div>
+
+    <!-- Review History -->
+    {% if task.review_history %}
+    <div class="history-mini">
+        <strong>Previous Reviews:</strong>
+        {% for entry in task.review_history %}
+            <div class="history-mini-item">
+                <span class="badge {{ 'badge-green' if entry.action == 'Approved' else 'badge-red' }}">
+                    {{ entry.action }}
+                </span>
+                {{ entry.user }} — {{ entry.time }}<br>
+                <em>{{ entry.comment }}</em>
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- BUTTONS -->
+    <div class="btn-row">
+
+        <button class="btn btn-green"
+                onclick="openPopup('approve', {{ task.id }})">
+            ✓ Approve
+        </button>
+
+        <button class="btn btn-red"
+                onclick="openPopup('reject', {{ task.id }})">
+            ✗ Reject
+        </button>
+
+    </div>
+
+</div>
+{% endfor %}
+
+</div>
+
+{% else %}
+<p class="empty-msg">
+    No tasks are currently assigned to you for review 🎉
+</p>
+{% endif %}
+
+
+<!-- POPUP WINDOW -->
+<div id="reviewModal" class="modal">
+
+    <div class="modal-content">
+
+        <span class="close" onclick="closePopup()">&times;</span>
+
+        <h2 id="popupTitle">Review Task</h2>
+
+        <form id="popupForm" method="POST">
+
+            <textarea id="popupComment"
+                      name="comment"
+                      placeholder="Enter review comment..."
+                      rows="4"></textarea>
+
+            <br><br>
+
+            <button type="submit" class="btn btn-primary">
+                Submit
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<script>
+
+function openPopup(action, taskId) {
+
+    let modal = document.getElementById("reviewModal");
+    let form = document.getElementById("popupForm");
+    let title = document.getElementById("popupTitle");
+
+    modal.style.display = "block";
+
+    if (action === "approve") {
+        title.innerHTML = "Approve Task";
+        form.action = "/task/" + taskId + "/approve";
+    } else {
+        title.innerHTML = "Reject Task";
+        form.action = "/task/" + taskId + "/reject";
+    }
+}
+
+function closePopup() {
+    document.getElementById("reviewModal").style.display = "none";
+}
+
+window.onclick = function(event) {
+    let modal = document.getElementById("reviewModal");
+
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+}
+
+</script>
+
+{% endblock %}

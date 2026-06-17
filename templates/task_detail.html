@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="detail-container">
+
+    <div class="page-header">
+        <h1>{{ task.title }}</h1>
+
+        <a href="{{ url_for('all_tasks') }}"
+           class="btn btn-secondary">
+            ← Back
+        </a>
+    </div>
+
+
+    <div class="detail-card">
+
+        <!-- STATUS + PRIORITY -->
+        <div class="detail-row">
+
+            <span class="status-badge status-{{ task.status|replace(' ','-')|lower }}">
+                {{ task.status }}
+            </span>
+
+            <span class="badge priority-{{ task.priority|lower }}">
+                {{ task.priority }}
+            </span>
+
+        </div>
+
+
+        <!-- DESCRIPTION -->
+        <div class="detail-section">
+            <h3>Description</h3>
+            <p>{{ task.description }}</p>
+        </div>
+
+
+        <!-- TASK INFO -->
+        <div class="detail-grid">
+
+            <div>
+                <strong>Assignee:</strong>
+                {{ task.assignee }}
+            </div>
+
+            <div>
+                <strong>Reviewer:</strong>
+                {{ task.reviewer }}
+            </div>
+
+            <div>
+                <strong>Due Date:</strong>
+                {{ task.due_date }}
+            </div>
+
+            <div>
+                <strong>Created:</strong>
+                {{ task.created_date }}
+            </div>
+
+            <div>
+                <strong>Last Updated:</strong>
+                {{ task.updated_date }}
+            </div>
+
+        </div>
+
+
+        <!-- ACTIONS -->
+        <div class="detail-section">
+
+            {% if task.status == "To Do" and current_user == task.assignee %}
+
+                <form method="POST"
+                      action="{{ url_for('start_task', task_id=task.id) }}">
+
+                    <button class="btn btn-primary">
+                        Start Task
+                    </button>
+
+                </form>
+
+            {% elif task.status == "In Progress" and current_user == task.assignee %}
+
+                <form method="POST"
+                      action="{{ url_for('send_to_review', task_id=task.id) }}">
+
+                    <button class="btn btn-warning">
+                        Send to Review
+                    </button>
+
+                </form>
+
+            {% elif task.status == "In Review" and current_user == task.reviewer %}
+
+                <p>
+                    <a href="{{ url_for('review_tasks') }}"
+                       class="btn btn-info">
+                        Go to Review Panel
+                    </a>
+                </p>
+
+            {% endif %}
+
+        </div>
+
+
+        <!-- REVIEW HISTORY -->
+        <div class="detail-section">
+
+            <h3>📜 Task Review Timeline</h3>
+
+            {% if task.review_history %}
+
+                <div class="history-list">
+
+                {% for entry in task.review_history %}
+
+                    <div class="history-item {{ 'approved' if entry.action == 'Approved' else 'rejected' }}">
+
+                        <div class="history-header">
+
+                            <strong>
+                                {{ entry.user }}
+                            </strong>
+
+                            <span class="badge {{ 'badge-green' if entry.action == 'Approved' else 'badge-red' }}">
+
+                                {% if entry.action == "Approved" %}
+                                    ✅ Approved
+                                {% else %}
+                                    ❌ Rejected
+                                {% endif %}
+
+                            </span>
+
+                            <span class="history-time">
+                                {{ entry.time }}
+                            </span>
+
+                        </div>
+
+                        <p>
+                            <strong>Comment:</strong>
+                            {{ entry.comment }}
+                        </p>
+
+                    </div>
+
+                {% endfor %}
+
+                </div>
+
+            {% else %}
+
+                <p class="empty-msg">
+                    No review history yet.
+                </p>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

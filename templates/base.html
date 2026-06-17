@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Assignment & Review Workflow</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+{% if session.user %}
+<nav>
+    <span class="nav-brand">📋 Task Workflow</span>
+    <div class="nav-links">
+        <a href="{{ url_for('dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('all_tasks') }}">All Tasks</a>
+        <a href="{{ url_for('create_task') }}">+ Create Task</a>
+        <a href="{{ url_for('review_tasks') }}">My Reviews</a>
+        <span class="nav-user">👤 {{ session.user }}</span>
+        <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+</nav>
+{% endif %}
+
+<div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</div>
+
+</body>
+</html>
