@@ -53,36 +53,7 @@ def dashboard():
     tasks = load_tasks()
     today = datetime.now().date()
 
-    assigned = [
-        t for t in tasks
-        if t["assignee"] == current_user and t["status"] != "Completed"
-    ]
-
-    pending_review = [
-        t for t in tasks
-        if t["reviewer"] == current_user and t["status"] == "In Review"
-    ]
-
-    awaiting_review = [
-    t for t in tasks
-    if t["assignee"] == current_user
-    and t["status"] == "In Review"
-   ]
-    completed = [
-    t for t in tasks
-    if t["assignee"] == current_user
-    and t["status"] == "Completed"
-
-    ]
-
-    overdue = [
-    t for t in tasks
-    if t["assignee"] == current_user
-    and t["status"] != "Completed"
-    and datetime.strptime(t["due_date"], "%Y-%m-%d").date() < today
-    ]
-
-    # Separate tasks by status
+    # Separate tasks by status (visible cards)
     todo_tasks = [
         t for t in tasks
         if t["assignee"] == current_user
@@ -99,6 +70,27 @@ def dashboard():
         t for t in tasks
         if t["assignee"] == current_user
         and t["status"] == "Completed"
+    ]
+
+    # Count boxes (match visible cards)
+    assigned = todo_tasks + inprogress_tasks
+
+    pending_review = [
+        t for t in tasks
+        if t["reviewer"] == current_user
+        and t["status"] == "In Review"
+    ]
+
+    # remove duplicate counting
+    awaiting_review = []
+
+    completed = completed_tasks
+
+    overdue = [
+        t for t in tasks
+        if t["assignee"] == current_user
+        and t["status"] != "Completed"
+        and datetime.strptime(t["due_date"], "%Y-%m-%d").date() < today
     ]
 
     return render_template(
