@@ -64,19 +64,41 @@ def dashboard():
     ]
 
     awaiting_review = [
-        t for t in tasks
-        if t["status"] == "In Review"
-    ]
-
+    t for t in tasks
+    if t["assignee"] == current_user
+    and t["status"] == "In Review"
+   ]
     completed = [
-        t for t in tasks
-        if t["status"] == "Completed"
+    t for t in tasks
+    if t["assignee"] == current_user
+    and t["status"] == "Completed"
+
     ]
 
     overdue = [
+    t for t in tasks
+    if t["assignee"] == current_user
+    and t["status"] != "Completed"
+    and datetime.strptime(t["due_date"], "%Y-%m-%d").date() < today
+    ]
+
+    # Separate tasks by status
+    todo_tasks = [
         t for t in tasks
-        if t["status"] != "Completed"
-        and datetime.strptime(t["due_date"], "%Y-%m-%d").date() < today
+        if t["assignee"] == current_user
+        and t["status"] == "To Do"
+    ]
+
+    inprogress_tasks = [
+        t for t in tasks
+        if t["assignee"] == current_user
+        and t["status"] == "In Progress"
+    ]
+
+    completed_tasks = [
+        t for t in tasks
+        if t["assignee"] == current_user
+        and t["status"] == "Completed"
     ]
 
     return render_template(
@@ -86,9 +108,11 @@ def dashboard():
         pending_review=pending_review,
         awaiting_review=awaiting_review,
         completed=completed,
-        overdue=overdue
+        overdue=overdue,
+        todo_tasks=todo_tasks,
+        inprogress_tasks=inprogress_tasks,
+        completed_tasks=completed_tasks
     )
-
 
 @app.route("/tasks")
 def all_tasks():
@@ -98,7 +122,6 @@ def all_tasks():
     tasks = load_tasks()
     current_user = session["user"]
 
-    # Pagination settings
     page = request.args.get("page", 1, type=int)
     per_page = 3
 
@@ -346,6 +369,8 @@ def review_tasks():
         current_user=current_user
     )
 
+
+print(app.url_map)
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
