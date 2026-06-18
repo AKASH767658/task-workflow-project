@@ -344,16 +344,7 @@ documentation.md
 
 ---
 
-## Future Improvements
 
-This project can be improved by adding:
-
-* MySQL database
-* User authentication system
-* Email notifications
-* Search feature
-* Task filtering
-* Team management
 
 ---
 
