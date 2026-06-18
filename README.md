@@ -18,7 +18,7 @@ The project includes the following features:
 * Assign task to one user (Assignee)
 * Select reviewer for every task
 * Task status management
-* Review process with Approve and Reject options
+* Review process with Approve and Reject options(review and reject)
 * Add review comments
 * Store review history
 * Dashboard showing task summary
