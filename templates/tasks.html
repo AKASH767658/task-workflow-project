@@ -4,11 +4,28 @@
 <div class="page-header">
     <h1>All Tasks</h1>
 
-    <!-- CREATE TASK POPUP BUTTON -->
     <button class="btn btn-primary" onclick="openCreatePopup()">
         + Create Task
     </button>
 </div>
+
+<!-- FILTER SECTION -->
+
+<form method="GET" class="filter-section" id="filterForm">
+
+    <select name="filter" onchange="handleFilter(this.value)">
+        <option value="">Select Filter</option>
+        <option value="all">All Tasks</option>
+        <option value="date">Date Wise</option>
+        <option value="priority">Priority Wise</option>
+        <option value="todo">To Do</option>
+        <option value="progress">In Progress</option>
+        <option value="review">Pending Review</option>
+        <option value="completed">Completed</option>
+        <option value="overdue">Overdue</option>
+    </select>
+
+</form>
 
 
 {% if tasks %}
@@ -53,7 +70,6 @@
     </div>
 
 
-    <!-- ACTION BUTTONS -->
     <div class="card-actions">
 
         <a href="{{ url_for('task_detail', task_id=task.id) }}"
@@ -171,6 +187,44 @@
 </div>
 
 
+<!-- DATE FILTER POPUP -->
+
+<div id="dateModal" class="modal">
+
+    <div class="modal-content">
+
+        <span class="close"
+              onclick="closeDatePopup()">
+            &times;
+        </span>
+
+        <h2>Select Date</h2>
+
+        <form method="GET"
+              action="{{ url_for('all_tasks') }}">
+
+            <input type="hidden"
+                   name="filter"
+                   value="date">
+
+            <input type="date"
+                   name="task_date"
+                   required>
+
+            <br><br>
+
+            <button type="submit"
+                    class="btn btn-primary">
+                Apply
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+
 
 <script>
 
@@ -182,12 +236,32 @@ function closeCreatePopup() {
     document.getElementById("createModal").style.display = "none";
 }
 
+function handleFilter(value) {
+
+    if (value === "date") {
+        document.getElementById("dateModal").style.display = "block";
+    }
+
+    else if (value !== "") {
+        window.location.href = "/tasks?filter=" + value;
+    }
+}
+
+function closeDatePopup() {
+    document.getElementById("dateModal").style.display = "none";
+}
+
 window.onclick = function(event) {
 
-    let modal = document.getElementById("createModal");
+    let createModal = document.getElementById("createModal");
+    let dateModal = document.getElementById("dateModal");
 
-    if (event.target == modal) {
-        modal.style.display = "none";
+    if (event.target == createModal) {
+        createModal.style.display = "none";
+    }
+
+    if (event.target == dateModal) {
+        dateModal.style.display = "none";
     }
 }
 

@@ -313,3 +313,17 @@ h2 {
     margin-top: 30px;
     margin-bottom: 15px;
 }
+
+
+.filter-section {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.filter-section select {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    cursor: pointer;
+}

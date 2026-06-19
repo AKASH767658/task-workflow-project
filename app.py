@@ -114,6 +114,117 @@ def all_tasks():
     tasks = load_tasks()
     current_user = session["user"]
 
+    filter_by = request.args.get("filter")
+    sort_by = request.args.get("sort")
+    selected_date = request.args.get("task_date")
+
+    # FILTER
+
+    if filter_by == "completed":
+        tasks = [
+            t for t in tasks
+            if t["status"] == "Completed"
+        ]
+
+    elif filter_by == "review":
+        tasks = [
+            t for t in tasks
+            if t["status"] == "In Review"
+        ]
+
+    elif filter_by == "todo":
+        tasks = [
+            t for t in tasks
+            if t["status"] == "To Do"
+        ]
+
+    elif filter_by == "progress":
+        tasks = [
+            t for t in tasks
+            if t["status"] == "In Progress"
+        ]
+
+    elif filter_by == "overdue":
+
+        today = datetime.now().date()
+
+        tasks = [
+            t for t in tasks
+            if t["status"] != "Completed"
+            and datetime.strptime(
+                t["due_date"], "%Y-%m-%d"
+            ).date() < today
+        ]
+
+    # DATE WISE (popup will handle actual date)
+
+    elif filter_by == "date":
+        pass
+
+    # PRIORITY WISE
+
+    elif filter_by == "priority":
+
+        priority_order = {
+            "High": 1,
+            "Medium": 2,
+            "Low": 3
+        }
+
+        tasks = sorted(
+            tasks,
+            key=lambda x: priority_order.get(
+                x["priority"], 99
+            )
+        )
+
+    # SPECIFIC DATE FILTER
+
+    if selected_date:
+        tasks = [
+            t for t in tasks
+            if t["due_date"] == selected_date
+        ]
+
+    # SORT
+
+    if sort_by == "newest":
+        tasks = sorted(
+            tasks,
+            key=lambda x: x["created_date"],
+            reverse=True
+        )
+
+    elif sort_by == "oldest":
+        tasks = sorted(
+            tasks,
+            key=lambda x: x["created_date"]
+        )
+
+    # PAGINATION
+
+    page = request.args.get("page", 1, type=int)
+    per_page = 3
+
+    start = (page - 1) * per_page
+    end = start + per_page
+
+    paginated_tasks = tasks[start:end]
+
+    has_next = end < len(tasks)
+    has_prev = page > 1
+
+    return render_template(
+        "tasks.html",
+        tasks=paginated_tasks,
+        current_user=current_user,
+        page=page,
+        has_next=has_next,
+        has_prev=has_prev
+    )
+
+    # PAGINATION
+
     page = request.args.get("page", 1, type=int)
     per_page = 3
 
