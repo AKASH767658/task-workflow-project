@@ -3,6 +3,19 @@
 
 <div class="page-header">
     <h1>All Tasks</h1>
+    <div style="margin-bottom:20px;">
+
+    <a href="{{ url_for('all_tasks', view='all') }}"
+       class="btn btn-primary">
+        🌍 Show All Tasks
+    </a>
+
+    <a href="{{ url_for('all_tasks', view='my') }}"
+       class="btn btn-secondary">
+        👤 Show My Tasks
+    </a>
+
+</div>
 
     <button class="btn btn-primary" onclick="openCreatePopup()">
         + Create Task
@@ -72,10 +85,26 @@
 
     <div class="card-actions">
 
-        <a href="{{ url_for('task_detail', task_id=task.id) }}"
-           class="btn btn-secondary">
-            View Details
-        </a>
+        <{% if task.status == "Completed" %}
+
+    <button class="btn btn-success"
+            onclick="openHistory('{{ task.id }}')">
+        View Workflow History
+    </button>
+
+{% else %}
+
+    <a href="{{ url_for('task_detail', task_id=task.id) }}"
+       class="btn btn-secondary">
+        View Details
+    </a>
+
+    <button class="btn btn-info"
+            onclick="openHistory('{{ task.id }}')">
+        View Full History
+    </button>
+
+{% endif %}
 
         {% if task.status == "To Do" and current_user == task.assignee %}
 
@@ -225,6 +254,28 @@
 </div>
 
 
+<!-- HISTORY POPUP -->
+
+<div id="historyModal" class="modal">
+
+    <div class="modal-content">
+
+        <span class="close"
+              onclick="closeHistory()">
+            &times;
+        </span>
+
+        <h2>Task Full History</h2>
+
+        <div id="historyContent">
+
+        </div>
+
+    </div>
+
+</div>
+
+
 
 <script>
 
@@ -240,10 +291,24 @@ function handleFilter(value) {
 
     if (value === "date") {
         document.getElementById("dateModal").style.display = "block";
+        return;
     }
 
-    else if (value !== "") {
-        window.location.href = "/tasks?filter=" + value;
+    let params = new URLSearchParams(window.location.search);
+
+    let currentView = params.get("view");
+
+    if (value !== "") {
+
+        if (currentView) {
+            window.location.href =
+                "/tasks?view=" + currentView + "&filter=" + value;
+        }
+
+        else {
+            window.location.href =
+                "/tasks?filter=" + value;
+        }
     }
 }
 
@@ -251,22 +316,174 @@ function closeDatePopup() {
     document.getElementById("dateModal").style.display = "none";
 }
 
+
+/* HISTORY */
+
+function openHistory(taskId){
+
+    fetch("/history/" + taskId)
+    .then(function(response){
+        return response.json();
+    })
+    .then(function(data){
+
+        let html = "";
+
+        data.forEach(function(item){
+
+            let card = "";
+
+            /* CREATED */
+
+            if(item.action === "Task Created"){
+
+                card =
+
+                "<div style='padding:18px; margin-bottom:15px; background:#eef7ff; border-radius:10px; border-bottom:2px solid #ddd;'>" +
+
+                "<h3>📝 Task Created</h3>" +
+
+                "<p><strong>Assigned To :</strong> " + item.assignee + "</p>" +
+
+                "<p><strong>Reviewer :</strong> " + item.reviewer + "</p>" +
+
+                "<p style='color:gray;'>" + item.time + "</p>" +
+
+                "</div>";
+            }
+
+            /* STARTED */
+
+            else if(item.action === "Started"){
+
+                card =
+
+                "<div style='padding:18px; margin-bottom:15px; background:#fffaf0; border-radius:10px; border-bottom:2px solid #ddd;'>" +
+
+                "<h3>🚀 " + item.user + " started working</h3>" +
+
+                "<p>Task work has started</p>" +
+
+                "<p style='color:gray;'>" + item.time + "</p>" +
+
+                "</div>";
+            }
+
+            /* SENT REVIEW */
+
+            else if(item.action === "Sent For Review"){
+
+                card =
+
+                "<div style='padding:18px; margin-bottom:15px; background:#f3faff; border-radius:10px; border-bottom:2px solid #ddd;'>" +
+
+                "<h3>📤 " + item.user + " submitted for review</h3>" +
+
+                "<p>Waiting for reviewer approval</p>" +
+
+                "<p style='color:gray;'>" + item.time + "</p>" +
+
+                "</div>";
+            }
+
+            /* APPROVED */
+
+            else if(item.action === "Approved"){
+
+                let imageButton = "";
+
+                if(item.image){
+
+                    imageButton =
+
+                    "<a href='/static/uploads/" + item.image +
+                    "' target='_blank' " +
+                    "style='padding:8px 14px; background:#2ecc71; color:white; text-decoration:none; border-radius:6px;'>📷 Open Attachment</a><br><br>";
+                }
+
+                card =
+
+                "<div style='padding:18px; margin-bottom:15px; background:#f1fff5; border-radius:10px; border-bottom:2px solid #ddd;'>" +
+
+                "<h3>✅ " + item.user + " approved task</h3>" +
+
+                "<p><strong>Comment :</strong> " + item.comment + "</p><br>" +
+
+                imageButton +
+
+                "<p style='color:gray;'>" + item.time + "</p>" +
+
+                "</div>";
+            }
+
+            /* REJECTED */
+
+            else if(item.action === "Rejected"){
+
+                let imageButton = "";
+
+                if(item.image){
+
+                    imageButton =
+
+                    "<a href='/static/uploads/" + item.image +
+                    "' target='_blank' " +
+                    "style='padding:8px 14px; background:#e74c3c; color:white; text-decoration:none; border-radius:6px;'>📷 Open Attachment</a><br><br>";
+                }
+
+                card =
+
+                "<div style='padding:18px; margin-bottom:15px; background:#fff3f3; border-radius:10px; border-bottom:2px solid #ddd;'>" +
+
+                "<h3>❌ " + item.user + " rejected task</h3>" +
+
+                "<p><strong>Comment :</strong> " + item.comment + "</p><br>" +
+
+                imageButton +
+
+                "<p style='color:gray;'>" + item.time + "</p>" +
+
+                "</div>";
+            }
+
+            html += card;
+
+        });
+
+        document.getElementById("historyContent").innerHTML = html;
+        document.getElementById("historyModal").style.display = "block";
+
+    });
+}
+
+
+function closeHistory() {
+    document.getElementById("historyModal").style.display = "none";
+}
+
+
+/* CLOSE WINDOWS */
+
 window.onclick = function(event) {
 
     let createModal = document.getElementById("createModal");
     let dateModal = document.getElementById("dateModal");
+    let historyModal = document.getElementById("historyModal");
 
     if (event.target == createModal) {
-        createModal.style.display = "none";
+        closeCreatePopup();
     }
 
     if (event.target == dateModal) {
-        dateModal.style.display = "none";
+        closeDatePopup();
+    }
+
+    if (event.target == historyModal) {
+        closeHistory();
     }
 }
 
 </script>
-
 
 
 <!-- PAGINATION -->
@@ -274,7 +491,10 @@ window.onclick = function(event) {
 <div class="pagination">
 
     {% if has_prev %}
-        <a href="{{ url_for('all_tasks', page=page-1) }}"
+        <a href="{{ url_for('all_tasks',
+                            page=page-1,
+                            filter=request.args.get('filter'),
+                            view=request.args.get('view')) }}"
            class="btn btn-secondary">
             ← Previous
         </a>
@@ -285,7 +505,10 @@ window.onclick = function(event) {
     </span>
 
     {% if has_next %}
-        <a href="{{ url_for('all_tasks', page=page+1) }}"
+        <a href="{{ url_for('all_tasks',
+                            page=page+1,
+                            filter=request.args.get('filter'),
+                            view=request.args.get('view')) }}"
            class="btn btn-primary">
             Next →
         </a>

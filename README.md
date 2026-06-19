@@ -125,24 +125,24 @@ Tools Used:
 
 ## Project Structure
 
+```bash
 task-workflow/
-
-│── app.py
-│── tasks.json
-│── templates/
-│   │── login.html
-│   │── dashboard.html
-│   │── tasks.html
-│   │── review.html
-│   │── task_detail.html
-│   │── base.html
 │
-│── static/
-│   │── style.css
+├── app.py
+├── tasks.json
+├── README.md
 │
-│── README.md
-
----
+├── templates/
+│   ├── base.html
+│   ├── login.html
+│   ├── dashboard.html
+│   ├── tasks.html
+│   ├── review.html
+│   └── task_detail.html
+│
+└── static/
+    └── style.css
+```
 
 
 ## Installation

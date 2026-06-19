@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from datetime import datetime
 import json
 import os
@@ -118,6 +118,17 @@ def all_tasks():
     sort_by = request.args.get("sort")
     selected_date = request.args.get("task_date")
 
+    # NEW TOGGLE
+    view = request.args.get("view", "all")
+
+    # SHOW ONLY MY TASKS
+    if view == "my":
+        tasks = [
+            t for t in tasks
+            if t["assignee"] == current_user
+            or t["reviewer"] == current_user
+        ]
+
     # FILTER
 
     if filter_by == "completed":
@@ -156,12 +167,8 @@ def all_tasks():
             ).date() < today
         ]
 
-    # DATE WISE (popup will handle actual date)
-
     elif filter_by == "date":
         pass
-
-    # PRIORITY WISE
 
     elif filter_by == "priority":
 
@@ -223,27 +230,6 @@ def all_tasks():
         has_prev=has_prev
     )
 
-    # PAGINATION
-
-    page = request.args.get("page", 1, type=int)
-    per_page = 3
-
-    start = (page - 1) * per_page
-    end = start + per_page
-
-    paginated_tasks = tasks[start:end]
-
-    has_next = end < len(tasks)
-    has_prev = page > 1
-
-    return render_template(
-        "tasks.html",
-        tasks=paginated_tasks,
-        current_user=current_user,
-        page=page,
-        has_next=has_next,
-        has_prev=has_prev
-    )
 
 
 # FIXED FOR POPUP CREATE TASK
@@ -315,12 +301,14 @@ def task_detail(task_id):
 
 @app.route("/task/<int:task_id>/start", methods=["POST"])
 def start_task(task_id):
+
     if "user" not in session:
         return redirect(url_for("index"))
 
     tasks = load_tasks()
 
     for task in tasks:
+
         if task["id"] == task_id:
 
             if task["assignee"] != session["user"]:
@@ -334,7 +322,18 @@ def start_task(task_id):
             task["status"] = "In Progress"
             task["updated_date"] = now()
 
-            flash(f"Task '{task['title']}' is now In Progress.", "success")
+            # HISTORY SAVE
+            task["review_history"].append({
+                "user": session["user"],
+                "action": "Started",
+                "time": now(),
+                "comment": "Task work started"
+            })
+
+            flash(
+                f"Task '{task['title']}' is now In Progress.",
+                "success"
+            )
             break
 
     save_tasks(tasks)
@@ -343,12 +342,14 @@ def start_task(task_id):
 
 @app.route("/task/<int:task_id>/send_review", methods=["POST"])
 def send_to_review(task_id):
+
     if "user" not in session:
         return redirect(url_for("index"))
 
     tasks = load_tasks()
 
     for task in tasks:
+
         if task["id"] == task_id:
 
             if task["assignee"] != session["user"]:
@@ -362,7 +363,18 @@ def send_to_review(task_id):
             task["status"] = "In Review"
             task["updated_date"] = now()
 
-            flash(f"Task '{task['title']}' sent for review.", "success")
+            # HISTORY SAVE
+            task["review_history"].append({
+                "user": session["user"],
+                "action": "Sent For Review",
+                "time": now(),
+                "comment": "Task submitted for review"
+            })
+
+            flash(
+                f"Task '{task['title']}' sent for review.",
+                "success"
+            )
             break
 
     save_tasks(tasks)
@@ -375,6 +387,24 @@ def approve_task(task_id):
         return redirect(url_for("index"))
 
     comment = request.form.get("comment", "").strip()
+
+    image = request.files.get("review_image")
+
+    filename = ""
+
+    if image and image.filename != "":
+        filename = image.filename
+
+        if not os.path.exists("static/uploads"):
+            os.makedirs("static/uploads")
+
+        image.save(
+            os.path.join(
+                "static/uploads",
+                filename
+            )
+        )
+
     tasks = load_tasks()
 
     for task in tasks:
@@ -392,7 +422,8 @@ def approve_task(task_id):
                 "user": session["user"],
                 "action": "Approved",
                 "time": now(),
-                "comment": comment or "No comment"
+                "comment": comment or "No comment",
+                "image": filename
             })
 
             task["status"] = "Completed"
@@ -407,13 +438,29 @@ def approve_task(task_id):
     save_tasks(tasks)
     return redirect(url_for("review_tasks"))
 
-
 @app.route("/task/<int:task_id>/reject", methods=["POST"])
 def reject_task(task_id):
     if "user" not in session:
         return redirect(url_for("index"))
 
     comment = request.form.get("comment", "").strip()
+
+    image = request.files.get("review_image")
+
+    filename = ""
+
+    if image and image.filename != "":
+        filename = image.filename
+
+        if not os.path.exists("static/uploads"):
+            os.makedirs("static/uploads")
+
+        image.save(
+            os.path.join(
+                "static/uploads",
+                filename
+            )
+        )
 
     if not comment:
         flash("A comment is required when rejecting a task.", "error")
@@ -436,7 +483,8 @@ def reject_task(task_id):
                 "user": session["user"],
                 "action": "Rejected",
                 "time": now(),
-                "comment": comment
+                "comment": comment,
+                "image": filename
             })
 
             task["status"] = "In Progress"
@@ -452,24 +500,67 @@ def reject_task(task_id):
     return redirect(url_for("review_tasks"))
 
 
+@app.route("/history/<int:task_id>")
+def get_history(task_id):
+
+    if "user" not in session:
+        return jsonify([])
+
+    tasks = load_tasks()
+
+    for task in tasks:
+
+        if task["id"] == task_id:
+
+            history = []
+
+            # Created entry
+            history.append({
+                "action": "Task Created",
+                "assignee": task["assignee"],
+                "reviewer": task["reviewer"],
+                "time": task["created_date"]
+            })
+
+            # Review entries
+            if "review_history" in task:
+
+                for item in task["review_history"]:
+
+                    history.append({
+                        "action": item["action"],
+                        "user": item["user"],
+                        "time": item["time"],
+                        "comment": item.get("comment", ""),
+                        "image": item.get("image", "")
+                    })
+
+            return jsonify(history)
+
+    return jsonify([])
+
+
 @app.route("/review")
 def review_tasks():
+
     if "user" not in session:
         return redirect(url_for("index"))
 
-    current_user = session["user"]
     tasks = load_tasks()
 
-    my_review_tasks = [
+    review_tasks_list = [
+
         t for t in tasks
-        if t["reviewer"] == current_user
+
+        if t["reviewer"] == session["user"]
+
         and t["status"] == "In Review"
     ]
 
     return render_template(
         "review.html",
-        tasks=my_review_tasks,
-        current_user=current_user
+        tasks=review_tasks_list,
+        current_user=session["user"]
     )
 
 

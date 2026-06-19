@@ -70,26 +70,42 @@
     "title": "dfdgdg",
     "description": "ddw",
     "priority": "Medium",
-    "status": "In Review",
+    "status": "Completed",
     "assignee": "xxx",
     "reviewer": "yyy",
     "due_date": "2026-06-26",
     "created_date": "2026-06-17 12:03:23",
-    "updated_date": "2026-06-17 15:38:02",
-    "review_history": []
+    "updated_date": "2026-06-19 18:57:03",
+    "review_history": [
+      {
+        "user": "yyy",
+        "action": "Approved",
+        "time": "2026-06-19 18:57:03",
+        "comment": "uuu",
+        "image": "Screenshot 2026-06-17 130422.png"
+      }
+    ]
   },
   {
     "id": 5,
     "title": "aimlllll",
     "description": "fjjff",
     "priority": "Low",
-    "status": "In Review",
+    "status": "In Progress",
     "assignee": "xxx",
     "reviewer": "yyy",
     "due_date": "2026-06-18",
     "created_date": "2026-06-17 12:06:20",
-    "updated_date": "2026-06-19 15:58:49",
-    "review_history": []
+    "updated_date": "2026-06-19 22:11:04",
+    "review_history": [
+      {
+        "user": "yyy",
+        "action": "Rejected",
+        "time": "2026-06-19 22:11:04",
+        "comment": "rr",
+        "image": ""
+      }
+    ]
   },
   {
     "id": 6,
@@ -116,13 +132,21 @@
     "title": "hdhdh",
     "description": "hdhdh",
     "priority": "Low",
-    "status": "In Review",
+    "status": "In Progress",
     "assignee": "xxx",
     "reviewer": "yyy",
     "due_date": "2026-06-20",
     "created_date": "2026-06-17 15:36:54",
-    "updated_date": "2026-06-19 15:58:59",
-    "review_history": []
+    "updated_date": "2026-06-19 22:11:23",
+    "review_history": [
+      {
+        "user": "yyy",
+        "action": "Rejected",
+        "time": "2026-06-19 22:11:23",
+        "comment": "r",
+        "image": ""
+      }
+    ]
   },
   {
     "id": 8,

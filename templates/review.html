@@ -45,12 +45,12 @@
     <div class="btn-row">
 
         <button class="btn btn-green"
-                onclick="openPopup('approve', {{ task.id }})">
+                onclick="openPopup('approve', '{{ task.id }}')">
             ✓ Approve
         </button>
 
         <button class="btn btn-red"
-                onclick="openPopup('reject', {{ task.id }})">
+                onclick="openPopup('reject', '{{ task.id }}')">
             ✗ Reject
         </button>
 
@@ -77,16 +77,25 @@
 
         <h2 id="popupTitle">Review Task</h2>
 
-        <form id="popupForm" method="POST">
+        <form id="popupForm"
+              method="POST"
+              enctype="multipart/form-data">
 
             <textarea id="popupComment"
                       name="comment"
                       placeholder="Enter review comment..."
-                      rows="4"></textarea>
+                      rows="4"
+                      required></textarea>
 
             <br><br>
 
-            <button type="submit" class="btn btn-primary">
+            <input type="file"
+                   name="review_image">
+
+            <br><br>
+
+            <button type="submit"
+                    class="btn btn-primary">
                 Submit
             </button>
 
@@ -110,7 +119,8 @@ function openPopup(action, taskId) {
     if (action === "approve") {
         title.innerHTML = "Approve Task";
         form.action = "/task/" + taskId + "/approve";
-    } else {
+    } 
+    else {
         title.innerHTML = "Reject Task";
         form.action = "/task/" + taskId + "/reject";
     }
