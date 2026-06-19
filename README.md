@@ -144,29 +144,30 @@ task-workflow/
 
 ---
 
-## How to Run Project
 
-1. Clone project
+## Installation
 
-git clone your_repository_link
+### 1. Create Virtual Environment
 
-2. Move into folder
+```bash
+python3 -m venv venv
+```
 
-cd task-workflow
+### 2. Activate Virtual Environment
 
-3. Install Flask
+```bash
+source venv/bin/activate
+```
 
-pip install flask
+### 3. Install Flask / Dependencies
 
-4. Run project
+```bash
+pip install -r requirements.txt
+
+
 
 python app.py
-
-5. Open browser
-
-http://127.0.0.1:5000
-
----
+```
 
 ## Example Workflow
 
