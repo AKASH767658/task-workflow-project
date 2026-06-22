@@ -7,7 +7,9 @@ app = Flask(__name__)
 app.secret_key = "taskworkflow_secret_key"
 
 # ---------- Data Storage ----------
+
 DATA_FILE = "tasks.json"
+VALIDATION_FILE = "validation.json"
 
 
 def load_tasks():
@@ -22,9 +24,22 @@ def save_tasks(tasks):
         json.dump(tasks, f, indent=2)
 
 
+# NEW VALIDATION FUNCTIONS
+
+def load_validation():
+    if os.path.exists(VALIDATION_FILE):
+        with open(VALIDATION_FILE, "r") as f:
+            return json.load(f)
+    return []
+
+
+def save_validation(validation_data):
+    with open(VALIDATION_FILE, "w") as f:
+        json.dump(validation_data, f, indent=2)
+
+
 def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
 
 # ---------- Routes ----------
 
@@ -235,10 +250,12 @@ def all_tasks():
 # FIXED FOR POPUP CREATE TASK
 @app.route("/create", methods=["GET", "POST"])
 def create_task():
+
     if "user" not in session:
         return redirect(url_for("index"))
 
     if request.method == "POST":
+
         title = request.form.get("title", "").strip()
         description = request.form.get("description", "").strip()
         priority = request.form.get("priority", "").strip()
@@ -246,13 +263,41 @@ def create_task():
         reviewer = request.form.get("reviewer", "").strip()
         due_date = request.form.get("due_date", "").strip()
 
-        if not all([title, description, priority, assignee, reviewer, due_date]):
-            flash("All fields are required.", "error")
+        # VALIDATION CHECK
+
+        validation = {
+            "title_valid": bool(title),
+            "description_valid": bool(description),
+            "priority_valid": bool(priority),
+            "assignee_valid": bool(assignee),
+            "reviewer_valid": bool(reviewer),
+            "same_person_check": assignee != reviewer,
+            "due_date_valid": datetime.strptime(
+                due_date, "%Y-%m-%d"
+            ).date() >= datetime.now().date()
+        }
+
+        # SAVE VALIDATION RESULT IN validation.json
+
+        validation_data = load_validation()
+
+        validation_entry = {
+            "action": "Create Task",
+            "time": now(),
+            "validation": validation
+        }
+
+        validation_data.append(validation_entry)
+
+        save_validation(validation_data)
+
+        # IF VALIDATION FAILS
+
+        if not all(validation.values()):
+            flash("Validation failed. Check all fields.", "error")
             return redirect(url_for("all_tasks"))
 
-        if assignee == reviewer:
-            flash("Assignee and Reviewer cannot be the same person.", "error")
-            return redirect(url_for("all_tasks"))
+        # CREATE TASK
 
         tasks = load_tasks()
 
@@ -273,10 +318,13 @@ def create_task():
         tasks.append(task)
         save_tasks(tasks)
 
-        flash(f"Task '{title}' created successfully!", "success")
+        flash(
+            f"Task '{title}' created successfully!",
+            "success"
+        )
+
         return redirect(url_for("all_tasks"))
 
-    # no separate create_task.html anymore
     return redirect(url_for("all_tasks"))
 
 
@@ -352,18 +400,41 @@ def send_to_review(task_id):
 
         if task["id"] == task_id:
 
-            if task["assignee"] != session["user"]:
-                flash("Only the assignee can send this task for review.", "error")
-                break
+            # VALIDATION CHECK
 
-            if task["status"] != "In Progress":
-                flash("Task must be In Progress to send for review.", "error")
-                break
+            validation = {
+                "status_check": task["status"] == "In Progress",
+                "assignee_check": task["assignee"] == session["user"],
+                "reviewer_present": bool(task["reviewer"])
+            }
+
+            # SAVE VALIDATION IN validation.json
+
+            validation_data = load_validation()
+
+            validation_entry = {
+                "time": now(),
+                "task_id": task_id,
+                "action": "Send To Review",
+                "validation": validation
+            }
+
+            validation_data.append(validation_entry)
+            save_validation(validation_data)
+
+            # IF VALIDATION FAILS
+
+            if not all(validation.values()):
+                flash("Validation failed for Send To Review.", "error")
+                return redirect(url_for("all_tasks"))
+
+            # UPDATE STATUS
 
             task["status"] = "In Review"
             task["updated_date"] = now()
 
             # HISTORY SAVE
+
             task["review_history"].append({
                 "user": session["user"],
                 "action": "Sent For Review",
@@ -375,6 +446,7 @@ def send_to_review(task_id):
                 f"Task '{task['title']}' sent for review.",
                 "success"
             )
+
             break
 
     save_tasks(tasks)
@@ -383,13 +455,12 @@ def send_to_review(task_id):
 
 @app.route("/task/<int:task_id>/approve", methods=["POST"])
 def approve_task(task_id):
+
     if "user" not in session:
         return redirect(url_for("index"))
 
     comment = request.form.get("comment", "").strip()
-
     image = request.files.get("review_image")
-
     filename = ""
 
     if image and image.filename != "":
@@ -408,15 +479,37 @@ def approve_task(task_id):
     tasks = load_tasks()
 
     for task in tasks:
+
         if task["id"] == task_id:
 
-            if task["reviewer"] != session["user"]:
-                flash("Only the assigned reviewer can approve this task.", "error")
-                break
+            # VALIDATION CHECK
 
-            if task["status"] != "In Review":
-                flash("Task must be In Review to approve.", "error")
-                break
+            validation = {
+                "reviewer_check": task["reviewer"] == session["user"],
+                "status_check": task["status"] == "In Review"
+            }
+
+            # SAVE VALIDATION IN JSON
+
+            validation_data = load_validation()
+
+            validation_entry = {
+                "action": "Approve Task",
+                "task_id": task_id,
+                "time": now(),
+                "validation": validation
+            }
+
+            validation_data.append(validation_entry)
+            save_validation(validation_data)
+
+            # VALIDATION FAIL
+
+            if not all(validation.values()):
+                flash("Validation failed for Approve Task.", "error")
+                return redirect(url_for("review_tasks"))
+
+            # APPROVE TASK
 
             task["review_history"].append({
                 "user": session["user"],
@@ -433,6 +526,7 @@ def approve_task(task_id):
                 f"Task '{task['title']}' approved and marked Completed.",
                 "success"
             )
+
             break
 
     save_tasks(tasks)
@@ -440,13 +534,12 @@ def approve_task(task_id):
 
 @app.route("/task/<int:task_id>/reject", methods=["POST"])
 def reject_task(task_id):
+
     if "user" not in session:
         return redirect(url_for("index"))
 
     comment = request.form.get("comment", "").strip()
-
     image = request.files.get("review_image")
-
     filename = ""
 
     if image and image.filename != "":
@@ -462,22 +555,41 @@ def reject_task(task_id):
             )
         )
 
-    if not comment:
-        flash("A comment is required when rejecting a task.", "error")
-        return redirect(url_for("review_tasks"))
-
     tasks = load_tasks()
 
     for task in tasks:
+
         if task["id"] == task_id:
 
-            if task["reviewer"] != session["user"]:
-                flash("Only the assigned reviewer can reject this task.", "error")
-                break
+            # VALIDATION CHECK
 
-            if task["status"] != "In Review":
-                flash("Task must be In Review to reject.", "error")
-                break
+            validation = {
+                "reviewer_check": task["reviewer"] == session["user"],
+                "status_check": task["status"] == "In Review",
+                "comment_check": bool(comment)
+            }
+
+            # SAVE VALIDATION
+
+            validation_data = load_validation()
+
+            validation_entry = {
+                "action": "Reject Task",
+                "task_id": task_id,
+                "time": now(),
+                "validation": validation
+            }
+
+            validation_data.append(validation_entry)
+            save_validation(validation_data)
+
+            # VALIDATION FAIL
+
+            if not all(validation.values()):
+                flash("Validation failed for Reject Task.", "error")
+                return redirect(url_for("review_tasks"))
+
+            # REJECT TASK
 
             task["review_history"].append({
                 "user": session["user"],
@@ -494,11 +606,11 @@ def reject_task(task_id):
                 f"Task '{task['title']}' rejected and sent back to In Progress.",
                 "warning"
             )
+
             break
 
     save_tasks(tasks)
     return redirect(url_for("review_tasks"))
-
 
 @app.route("/history/<int:task_id>")
 def get_history(task_id):
