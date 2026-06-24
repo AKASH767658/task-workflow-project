@@ -3,6 +3,9 @@ from datetime import datetime
 import json
 import os
 
+
+from database import get_db
+
 app = Flask(__name__)
 app.secret_key = "taskworkflow_secret_key"
 
@@ -108,10 +111,29 @@ def dashboard():
 
 @app.route("/tasks")
 def all_tasks():
+
     if "user" not in session:
         return redirect(url_for("index"))
 
-    tasks = load_tasks()
+    # SQL FETCH
+
+    conn = get_db()
+
+    tasks = conn.execute(
+        "SELECT * FROM tasks"
+    ).fetchall()
+
+    conn.close()
+
+    tasks = [dict(task) for task in tasks]
+
+    current_user = session["user"]
+
+    filter_by = request.args.get("filter")
+    sort_by = request.args.get("sort")
+    selected_date = request.args.get("task_date")
+
+    view = request.args.get("view", "all")
     current_user = session["user"]
 
     filter_by = request.args.get("filter")
@@ -235,16 +257,20 @@ def all_tasks():
 # FIXED FOR POPUP CREATE TASK
 @app.route("/create", methods=["GET", "POST"])
 def create_task():
+
     if "user" not in session:
         return redirect(url_for("index"))
 
     if request.method == "POST":
+
         title = request.form.get("title", "").strip()
         description = request.form.get("description", "").strip()
         priority = request.form.get("priority", "").strip()
         assignee = request.form.get("assignee", "").strip()
         reviewer = request.form.get("reviewer", "").strip()
         due_date = request.form.get("due_date", "").strip()
+
+        # VALIDATION
 
         if not all([title, description, priority, assignee, reviewer, due_date]):
             flash("All fields are required.", "error")
@@ -254,29 +280,47 @@ def create_task():
             flash("Assignee and Reviewer cannot be the same person.", "error")
             return redirect(url_for("all_tasks"))
 
-        tasks = load_tasks()
+        # SQL INSERT (instead of JSON)
 
-        task = {
-            "id": len(tasks) + 1,
-            "title": title,
-            "description": description,
-            "priority": priority,
-            "status": "To Do",
-            "assignee": assignee,
-            "reviewer": reviewer,
-            "due_date": due_date,
-            "created_date": now(),
-            "updated_date": now(),
-            "review_history": []
-        }
+        conn = get_db()
 
-        tasks.append(task)
-        save_tasks(tasks)
+        conn.execute("""
+            INSERT INTO tasks
+            (
+                title,
+                description,
+                priority,
+                status,
+                assignee,
+                reviewer,
+                due_date,
+                created_date,
+                updated_date
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            title,
+            description,
+            priority,
+            "To Do",
+            assignee,
+            reviewer,
+            due_date,
+            now(),
+            now()
+        ))
 
-        flash(f"Task '{title}' created successfully!", "success")
+        conn.commit()
+        conn.close()
+
+        flash(
+            f"Task '{title}' created successfully!",
+            "success"
+        )
+
         return redirect(url_for("all_tasks"))
 
-    # no separate create_task.html anymore
     return redirect(url_for("all_tasks"))
 
 
@@ -305,40 +349,75 @@ def start_task(task_id):
     if "user" not in session:
         return redirect(url_for("index"))
 
-    tasks = load_tasks()
+    conn = get_db()
 
-    for task in tasks:
+    # GET TASK
+    task = conn.execute(
+        "SELECT * FROM tasks WHERE task_id = ?",
+        (task_id,)
+    ).fetchone()
 
-        if task["id"] == task_id:
+    if not task:
+        flash("Task not found.", "error")
+        conn.close()
+        return redirect(url_for("all_tasks"))
 
-            if task["assignee"] != session["user"]:
-                flash("Only the assignee can start this task.", "error")
-                break
+    # CHECK ASSIGNEE
+    if task["assignee"] != session["user"]:
+        flash("Only assignee can start task.", "error")
+        conn.close()
+        return redirect(url_for("all_tasks"))
 
-            if task["status"] != "To Do":
-                flash("Task cannot be started from its current status.", "error")
-                break
+    # CHECK STATUS
+    if task["status"] != "To Do":
+        flash("Task cannot be started now.", "error")
+        conn.close()
+        return redirect(url_for("all_tasks"))
 
-            task["status"] = "In Progress"
-            task["updated_date"] = now()
+    # UPDATE TASK STATUS
+    conn.execute("""
+        UPDATE tasks
+        SET status = ?, updated_date = ?
+        WHERE task_id = ?
+    """,
+    (
+        "In Progress",
+        now(),
+        task_id
+    ))
 
-            # HISTORY SAVE
-            task["review_history"].append({
-                "user": session["user"],
-                "action": "Started",
-                "time": now(),
-                "comment": "Task work started"
-            })
+    # INSERT HISTORY
 
-            flash(
-                f"Task '{task['title']}' is now In Progress.",
-                "success"
-            )
-            break
+    conn.execute("""
+        INSERT INTO review_history
+        (
+            task_id,
+            user,
+            action,
+            comment,
+            image,
+            review_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+    """,
+    (
+        task_id,
+        session["user"],
+        "Started",
+        "Task work started",
+        "",
+        now()
+    ))
 
-    save_tasks(tasks)
+    conn.commit()
+    conn.close()
+
+    flash(
+        f"Task '{task['title']}' is now In Progress.",
+        "success"
+    )
+
     return redirect(url_for("all_tasks"))
-
 
 @app.route("/task/<int:task_id>/send_review", methods=["POST"])
 def send_to_review(task_id):
@@ -346,50 +425,84 @@ def send_to_review(task_id):
     if "user" not in session:
         return redirect(url_for("index"))
 
-    tasks = load_tasks()
+    conn = get_db()
 
-    for task in tasks:
+    # GET TASK
+    task = conn.execute(
+        "SELECT * FROM tasks WHERE task_id = ?",
+        (task_id,)
+    ).fetchone()
 
-        if task["id"] == task_id:
+    if not task:
+        flash("Task not found.", "error")
+        conn.close()
+        return redirect(url_for("all_tasks"))
 
-            if task["assignee"] != session["user"]:
-                flash("Only the assignee can send this task for review.", "error")
-                break
+    # CHECK ASSIGNEE
+    if task["assignee"] != session["user"]:
+        flash("Only assignee can send task for review.", "error")
+        conn.close()
+        return redirect(url_for("all_tasks"))
 
-            if task["status"] != "In Progress":
-                flash("Task must be In Progress to send for review.", "error")
-                break
+    # CHECK STATUS
+    if task["status"] != "In Progress":
+        flash("Task must be In Progress.", "error")
+        conn.close()
+        return redirect(url_for("all_tasks"))
 
-            task["status"] = "In Review"
-            task["updated_date"] = now()
+    # UPDATE TASK STATUS
+    conn.execute("""
+        UPDATE tasks
+        SET status = ?, updated_date = ?
+        WHERE task_id = ?
+    """,
+    (
+        "In Review",
+        now(),
+        task_id
+    ))
 
-            # HISTORY SAVE
-            task["review_history"].append({
-                "user": session["user"],
-                "action": "Sent For Review",
-                "time": now(),
-                "comment": "Task submitted for review"
-            })
+    # INSERT HISTORY
+    conn.execute("""
+        INSERT INTO review_history
+        (
+            task_id,
+            user,
+            action,
+            comment,
+            image,
+            review_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+    """,
+    (
+        task_id,
+        session["user"],
+        "Sent For Review",
+        "Task submitted for review",
+        "",
+        now()
+    ))
 
-            flash(
-                f"Task '{task['title']}' sent for review.",
-                "success"
-            )
-            break
+    conn.commit()
+    conn.close()
 
-    save_tasks(tasks)
+    flash(
+        f"Task '{task['title']}' sent for review.",
+        "success"
+    )
+
     return redirect(url_for("all_tasks"))
 
 
 @app.route("/task/<int:task_id>/approve", methods=["POST"])
 def approve_task(task_id):
+
     if "user" not in session:
         return redirect(url_for("index"))
 
     comment = request.form.get("comment", "").strip()
-
     image = request.files.get("review_image")
-
     filename = ""
 
     if image and image.filename != "":
@@ -405,98 +518,171 @@ def approve_task(task_id):
             )
         )
 
-    tasks = load_tasks()
+    conn = get_db()
 
-    for task in tasks:
-        if task["id"] == task_id:
+    # GET TASK
+    task = conn.execute(
+        "SELECT * FROM tasks WHERE task_id = ?",
+        (task_id,)
+    ).fetchone()
 
-            if task["reviewer"] != session["user"]:
-                flash("Only the assigned reviewer can approve this task.", "error")
-                break
-
-            if task["status"] != "In Review":
-                flash("Task must be In Review to approve.", "error")
-                break
-
-            task["review_history"].append({
-                "user": session["user"],
-                "action": "Approved",
-                "time": now(),
-                "comment": comment or "No comment",
-                "image": filename
-            })
-
-            task["status"] = "Completed"
-            task["updated_date"] = now()
-
-            flash(
-                f"Task '{task['title']}' approved and marked Completed.",
-                "success"
-            )
-            break
-
-    save_tasks(tasks)
-    return redirect(url_for("review_tasks"))
-
-@app.route("/task/<int:task_id>/reject", methods=["POST"])
-def reject_task(task_id):
-    if "user" not in session:
-        return redirect(url_for("index"))
-
-    comment = request.form.get("comment", "").strip()
-
-    image = request.files.get("review_image")
-
-    filename = ""
-
-    if image and image.filename != "":
-        filename = image.filename
-
-        if not os.path.exists("static/uploads"):
-            os.makedirs("static/uploads")
-
-        image.save(
-            os.path.join(
-                "static/uploads",
-                filename
-            )
-        )
-
-    if not comment:
-        flash("A comment is required when rejecting a task.", "error")
+    if not task:
+        flash("Task not found.", "error")
+        conn.close()
         return redirect(url_for("review_tasks"))
 
-    tasks = load_tasks()
+    # CHECK REVIEWER
+    if task["reviewer"] != session["user"]:
+        flash("Only assigned reviewer can approve.", "error")
+        conn.close()
+        return redirect(url_for("review_tasks"))
 
-    for task in tasks:
-        if task["id"] == task_id:
+    # CHECK STATUS
+    if task["status"] != "In Review":
+        flash("Task must be In Review.", "error")
+        conn.close()
+        return redirect(url_for("review_tasks"))
 
-            if task["reviewer"] != session["user"]:
-                flash("Only the assigned reviewer can reject this task.", "error")
-                break
+    # UPDATE TASK STATUS
+    conn.execute("""
+        UPDATE tasks
+        SET status = ?, updated_date = ?
+        WHERE task_id = ?
+    """,
+    (
+        "Completed",
+        now(),
+        task_id
+    ))
 
-            if task["status"] != "In Review":
-                flash("Task must be In Review to reject.", "error")
-                break
+    # INSERT HISTORY
+    conn.execute("""
+        INSERT INTO review_history
+        (
+            task_id,
+            user,
+            action,
+            comment,
+            image,
+            review_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+    """,
+    (
+        task_id,
+        session["user"],
+        "Approved",
+        comment or "No comment",
+        filename,
+        now()
+    ))
 
-            task["review_history"].append({
-                "user": session["user"],
-                "action": "Rejected",
-                "time": now(),
-                "comment": comment,
-                "image": filename
-            })
+    conn.commit()
+    conn.close()
 
-            task["status"] = "In Progress"
-            task["updated_date"] = now()
+    flash(
+        f"Task '{task['title']}' approved and marked Completed.",
+        "success"
+    )
 
-            flash(
-                f"Task '{task['title']}' rejected and sent back to In Progress.",
-                "warning"
+    return redirect(url_for("review_tasks"))
+
+    return redirect(url_for("review_tasks"))
+@app.route("/task/<int:task_id>/reject", methods=["POST"])
+def reject_task(task_id):
+
+    if "user" not in session:
+        return redirect(url_for("index"))
+
+    comment = request.form.get("comment", "").strip()
+    image = request.files.get("review_image")
+    filename = ""
+
+    if image and image.filename != "":
+        filename = image.filename
+
+        if not os.path.exists("static/uploads"):
+            os.makedirs("static/uploads")
+
+        image.save(
+            os.path.join(
+                "static/uploads",
+                filename
             )
-            break
+        )
 
-    save_tasks(tasks)
+    # COMMENT REQUIRED
+    if not comment:
+        flash("Comment is required when rejecting task.", "error")
+        return redirect(url_for("review_tasks"))
+
+    conn = get_db()
+
+    # GET TASK
+    task = conn.execute(
+        "SELECT * FROM tasks WHERE task_id = ?",
+        (task_id,)
+    ).fetchone()
+
+    if not task:
+        flash("Task not found.", "error")
+        conn.close()
+        return redirect(url_for("review_tasks"))
+
+    # CHECK REVIEWER
+    if task["reviewer"] != session["user"]:
+        flash("Only assigned reviewer can reject.", "error")
+        conn.close()
+        return redirect(url_for("review_tasks"))
+
+    # CHECK STATUS
+    if task["status"] != "In Review":
+        flash("Task must be In Review.", "error")
+        conn.close()
+        return redirect(url_for("review_tasks"))
+
+    # UPDATE STATUS
+    conn.execute("""
+        UPDATE tasks
+        SET status = ?, updated_date = ?
+        WHERE task_id = ?
+    """,
+    (
+        "In Progress",
+        now(),
+        task_id
+    ))
+
+    # INSERT HISTORY
+    conn.execute("""
+        INSERT INTO review_history
+        (
+            task_id,
+            user,
+            action,
+            comment,
+            image,
+            review_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+    """,
+    (
+        task_id,
+        session["user"],
+        "Rejected",
+        comment,
+        filename,
+        now()
+    ))
+
+    conn.commit()
+    conn.close()
+
+    flash(
+        f"Task '{task['title']}' rejected and moved back to In Progress.",
+        "warning"
+    )
+
     return redirect(url_for("review_tasks"))
 
 
