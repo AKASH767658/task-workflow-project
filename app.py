@@ -9,20 +9,20 @@ from database import get_db
 app = Flask(__name__)
 app.secret_key = "taskworkflow_secret_key"
 
-# ---------- Data Storage ----------
-DATA_FILE = "tasks.json"
+# # ---------- Data Storage ----------
+# DATA_FILE = "tasks.json"
 
 
-def load_tasks():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    return []
+# def load_tasks():
+#     if os.path.exists(DATA_FILE):
+#         with open(DATA_FILE, "r") as f:
+#             return json.load(f)
+#     return []
 
 
-def save_tasks(tasks):
-    with open(DATA_FILE, "w") as f:
-        json.dump(tasks, f, indent=2)
+# def save_tasks(tasks):
+#     with open(DATA_FILE, "w") as f:
+#         json.dump(tasks, f, indent=2)
 
 
 def now():
@@ -338,22 +338,32 @@ def create_task():
 
 @app.route("/task/<int:task_id>")
 def task_detail(task_id):
+
     if "user" not in session:
         return redirect(url_for("index"))
 
-    tasks = load_tasks()
-    task = next((t for t in tasks if t["id"] == task_id), None)
+    conn = get_db()
+
+    # GET TASK FROM SQL
+    task = conn.execute(
+        "SELECT * FROM tasks WHERE task_id = ?",
+        (task_id,)
+    ).fetchone()
+
+    conn.close()
 
     if not task:
         flash("Task not found.", "error")
         return redirect(url_for("all_tasks"))
+
+    # convert SQL row to dictionary
+    task = dict(task)
 
     return render_template(
         "task_detail.html",
         task=task,
         current_user=session["user"]
     )
-
 
 @app.route("/task/<int:task_id>/start", methods=["POST"])
 def start_task(task_id):
@@ -599,7 +609,7 @@ def approve_task(task_id):
 
     return redirect(url_for("review_tasks"))
 
-    return redirect(url_for("review_tasks"))
+    
 @app.route("/task/<int:task_id>/reject", methods=["POST"])
 def reject_task(task_id):
 
@@ -704,38 +714,49 @@ def get_history(task_id):
     if "user" not in session:
         return jsonify([])
 
-    tasks = load_tasks()
+    conn = get_db()
 
-    for task in tasks:
+    # GET HISTORY FROM SQL TABLE
+    history = conn.execute("""
+        SELECT * FROM review_history
+        WHERE task_id = ?
+        ORDER BY review_id ASC
+    """,
+    (task_id,)
+    ).fetchall()
 
-        if task["id"] == task_id:
+    # GET TASK CREATED INFO
+    task = conn.execute("""
+        SELECT * FROM tasks
+        WHERE task_id = ?
+    """,
+    (task_id,)
+    ).fetchone()
 
-            history = []
+    conn.close()
 
-            # Created entry
-            history.append({
-                "action": "Task Created",
-                "assignee": task["assignee"],
-                "reviewer": task["reviewer"],
-                "time": task["created_date"]
-            })
+    result = []
 
-            # Review entries
-            if "review_history" in task:
+    # ADD TASK CREATED ENTRY
+    if task:
+        result.append({
+            "action": "Task Created",
+            "assignee": task["assignee"],
+            "reviewer": task["reviewer"],
+            "time": task["created_date"]
+        })
 
-                for item in task["review_history"]:
+    # ADD HISTORY ENTRIES
+    for item in history:
+        result.append({
+            "action": item["action"],
+            "user": item["user"],
+            "time": item["review_time"],
+            "comment": item["comment"],
+            "image": item["image"]
+        })
 
-                    history.append({
-                        "action": item["action"],
-                        "user": item["user"],
-                        "time": item["time"],
-                        "comment": item.get("comment", ""),
-                        "image": item.get("image", "")
-                    })
-
-            return jsonify(history)
-
-    return jsonify([])
+    return jsonify(result)
 
 
 @app.route("/review")

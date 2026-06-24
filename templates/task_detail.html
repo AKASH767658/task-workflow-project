@@ -73,7 +73,7 @@
             {% if task.status == "To Do" and current_user == task.assignee %}
 
                 <form method="POST"
-                      action="{{ url_for('start_task', task_id=task.id) }}">
+                      action="{{ url_for('start_task', task_id=task.task_id) }}">
 
                     <button class="btn btn-primary">
                         Start Task
@@ -84,7 +84,7 @@
             {% elif task.status == "In Progress" and current_user == task.assignee %}
 
                 <form method="POST"
-                      action="{{ url_for('send_to_review', task_id=task.id) }}">
+                      action="{{ url_for('send_to_review', task_id=task.task_id) }}">
 
                     <button class="btn btn-warning">
                         Send to Review
@@ -106,59 +106,14 @@
         </div>
 
 
-        <!-- REVIEW HISTORY -->
+        <!-- HISTORY REMOVED (old JSON logic removed) -->
         <div class="detail-section">
 
             <h3>📜 Task Review Timeline</h3>
 
-            {% if task.review_history %}
-
-                <div class="history-list">
-
-                {% for entry in task.review_history %}
-
-                    <div class="history-item {{ 'approved' if entry.action == 'Approved' else 'rejected' }}">
-
-                        <div class="history-header">
-
-                            <strong>
-                                {{ entry.user }}
-                            </strong>
-
-                            <span class="badge {{ 'badge-green' if entry.action == 'Approved' else 'badge-red' }}">
-
-                                {% if entry.action == "Approved" %}
-                                    ✅ Approved
-                                {% else %}
-                                    ❌ Rejected
-                                {% endif %}
-
-                            </span>
-
-                            <span class="history-time">
-                                {{ entry.time }}
-                            </span>
-
-                        </div>
-
-                        <p>
-                            <strong>Comment:</strong>
-                            {{ entry.comment }}
-                        </p>
-
-                    </div>
-
-                {% endfor %}
-
-                </div>
-
-            {% else %}
-
-                <p class="empty-msg">
-                    No review history yet.
-                </p>
-
-            {% endif %}
+            <p class="empty-msg">
+                View history from All Tasks → History button.
+            </p>
 
         </div>
 

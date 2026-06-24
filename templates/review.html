@@ -25,32 +25,16 @@
         <span>Assignee: <strong>{{ task.assignee }}</strong></span>
     </div>
 
-    <!-- Review History -->
-    {% if task.review_history %}
-    <div class="history-mini">
-        <strong>Previous Reviews:</strong>
-        {% for entry in task.review_history %}
-            <div class="history-mini-item">
-                <span class="badge {{ 'badge-green' if entry.action == 'Approved' else 'badge-red' }}">
-                    {{ entry.action }}
-                </span>
-                {{ entry.user }} — {{ entry.time }}<br>
-                <em>{{ entry.comment }}</em>
-            </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
     <!-- BUTTONS -->
     <div class="btn-row">
 
         <button class="btn btn-green"
-                onclick="openPopup('approve', '{{ task.id }}')">
+                onclick="openPopup('approve', '{{ task.task_id }}')">
             ✓ Approve
         </button>
 
         <button class="btn btn-red"
-                onclick="openPopup('reject', '{{ task.id }}')">
+                onclick="openPopup('reject', '{{ task.task_id }}')">
             ✗ Reject
         </button>
 
