@@ -49,14 +49,26 @@ def logout():
 
 @app.route("/dashboard")
 def dashboard():
+
     if "user" not in session:
         return redirect(url_for("index"))
 
     current_user = session["user"]
-    tasks = load_tasks()
+
+    # SQL FETCH
+    conn = get_db()
+
+    tasks = conn.execute(
+        "SELECT * FROM tasks"
+    ).fetchall()
+
+    conn.close()
+
+    tasks = [dict(task) for task in tasks]
+
     today = datetime.now().date()
 
-    # Separate tasks by status (visible cards)
+    # Separate tasks by status
     todo_tasks = [
         t for t in tasks
         if t["assignee"] == current_user
@@ -75,7 +87,6 @@ def dashboard():
         and t["status"] == "Completed"
     ]
 
-    # Count boxes (match visible cards)
     assigned = todo_tasks + inprogress_tasks
 
     pending_review = [
@@ -84,7 +95,6 @@ def dashboard():
         and t["status"] == "In Review"
     ]
 
-    # remove duplicate counting
     awaiting_review = []
 
     completed = completed_tasks
@@ -93,7 +103,9 @@ def dashboard():
         t for t in tasks
         if t["assignee"] == current_user
         and t["status"] != "Completed"
-        and datetime.strptime(t["due_date"], "%Y-%m-%d").date() < today
+        and datetime.strptime(
+            t["due_date"], "%Y-%m-%d"
+        ).date() < today
     ]
 
     return render_template(
@@ -732,23 +744,29 @@ def review_tasks():
     if "user" not in session:
         return redirect(url_for("index"))
 
-    tasks = load_tasks()
+    conn = get_db()
 
-    review_tasks_list = [
+    # GET TASKS FOR REVIEWER
+    tasks = conn.execute("""
+        SELECT * FROM tasks
+        WHERE reviewer = ?
+        AND status = ?
+    """,
+    (
+        session["user"],
+        "In Review"
+    )).fetchall()
 
-        t for t in tasks
+    conn.close()
 
-        if t["reviewer"] == session["user"]
-
-        and t["status"] == "In Review"
-    ]
+    # convert SQL rows to dictionary
+    review_tasks_list = [dict(task) for task in tasks]
 
     return render_template(
         "review.html",
         tasks=review_tasks_list,
         current_user=session["user"]
     )
-
 
 print(app.url_map)
 
