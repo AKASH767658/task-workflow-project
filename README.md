@@ -128,8 +128,10 @@ Tools Used:
 ```bash
 task-workflow/
 │
-├── app.py
-├── tasks.json
+├── app.py                 # Flask application routes
+├── database.py           # Database connection and table creation
+├── run.py                # Single script to create DB and start project
+├── task.db               # SQLite database file
 ├── README.md
 │
 ├── templates/
@@ -140,34 +142,44 @@ task-workflow/
 │   ├── review.html
 │   └── task_detail.html
 │
-└── static/
-    └── style.css
+├── static/
+│   ├── style.css
+│   └── uploads/          # Stores review images
+```
+
 ```
 
 
-## Installation
+## Task Workflow Project
 
-### 1. Create Virtual Environment
+How to Run Project
+
+Step 1: Install dependencies
 
 ```bash
-python3 -m venv venv
+pip install flask
 ```
 
-### 2. Activate Virtual Environment
+Step 2: Run project
 
 ```bash
-source venv/bin/activate
+python run.py
 ```
 
-### 3. Install Flask / Dependencies
+ What happens
 
-```bash
-pip install -r requirements.txt
+* Checks if database exists
+* Creates database tables if not available
+* Starts Flask server automatically
 
+Open browser
 
-
-python app.py
+```text
+http://127.0.0.1:5000
 ```
+
+
+
 
 ## Example Workflow
 

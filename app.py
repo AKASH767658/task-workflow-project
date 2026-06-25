@@ -55,12 +55,17 @@ def dashboard():
 
     current_user = session["user"]
 
-    # SQL FETCH
+    # SQL FETCH WITH USERS JOIN
     conn = get_db()
 
-    tasks = conn.execute(
-        "SELECT * FROM tasks"
-    ).fetchall()
+    tasks = conn.execute("""
+        SELECT tasks.*,
+               u1.username AS assignee_name,
+               u2.username AS reviewer_name
+        FROM tasks
+        JOIN users u1 ON tasks.assignee_id = u1.user_id
+        JOIN users u2 ON tasks.reviewer_id = u2.user_id
+    """).fetchall()
 
     conn.close()
 
@@ -71,19 +76,19 @@ def dashboard():
     # Separate tasks by status
     todo_tasks = [
         t for t in tasks
-        if t["assignee"] == current_user
+        if t["assignee_name"] == current_user
         and t["status"] == "To Do"
     ]
 
     inprogress_tasks = [
         t for t in tasks
-        if t["assignee"] == current_user
+        if t["assignee_name"] == current_user
         and t["status"] == "In Progress"
     ]
 
     completed_tasks = [
         t for t in tasks
-        if t["assignee"] == current_user
+        if t["assignee_name"] == current_user
         and t["status"] == "Completed"
     ]
 
@@ -91,7 +96,7 @@ def dashboard():
 
     pending_review = [
         t for t in tasks
-        if t["reviewer"] == current_user
+        if t["reviewer_name"] == current_user
         and t["status"] == "In Review"
     ]
 
@@ -101,7 +106,7 @@ def dashboard():
 
     overdue = [
         t for t in tasks
-        if t["assignee"] == current_user
+        if t["assignee_name"] == current_user
         and t["status"] != "Completed"
         and datetime.strptime(
             t["due_date"], "%Y-%m-%d"
@@ -127,13 +132,17 @@ def all_tasks():
     if "user" not in session:
         return redirect(url_for("index"))
 
-    # SQL FETCH
-
+    # SQL FETCH WITH USERS JOIN
     conn = get_db()
 
-    tasks = conn.execute(
-        "SELECT * FROM tasks"
-    ).fetchall()
+    tasks = conn.execute("""
+        SELECT tasks.*,
+               u1.username AS assignee_name,
+               u2.username AS reviewer_name
+        FROM tasks
+        JOIN users u1 ON tasks.assignee_id = u1.user_id
+        JOIN users u2 ON tasks.reviewer_id = u2.user_id
+    """).fetchall()
 
     conn.close()
 
@@ -144,23 +153,14 @@ def all_tasks():
     filter_by = request.args.get("filter")
     sort_by = request.args.get("sort")
     selected_date = request.args.get("task_date")
-
-    view = request.args.get("view", "all")
-    current_user = session["user"]
-
-    filter_by = request.args.get("filter")
-    sort_by = request.args.get("sort")
-    selected_date = request.args.get("task_date")
-
-    # NEW TOGGLE
     view = request.args.get("view", "all")
 
     # SHOW ONLY MY TASKS
     if view == "my":
         tasks = [
             t for t in tasks
-            if t["assignee"] == current_user
-            or t["reviewer"] == current_user
+            if t["assignee_name"] == current_user
+            or t["reviewer_name"] == current_user
         ]
 
     # FILTER
@@ -265,7 +265,6 @@ def all_tasks():
     )
 
 
-
 # FIXED FOR POPUP CREATE TASK
 @app.route("/create", methods=["GET", "POST"])
 def create_task():
@@ -283,7 +282,6 @@ def create_task():
         due_date = request.form.get("due_date", "").strip()
 
         # VALIDATION
-
         if not all([title, description, priority, assignee, reviewer, due_date]):
             flash("All fields are required.", "error")
             return redirect(url_for("all_tasks"))
@@ -292,10 +290,53 @@ def create_task():
             flash("Assignee and Reviewer cannot be the same person.", "error")
             return redirect(url_for("all_tasks"))
 
-        # SQL INSERT (instead of JSON)
-
         conn = get_db()
 
+        # CHECK ASSIGNEE
+        user = conn.execute(
+            "SELECT user_id FROM users WHERE username = ?",
+            (assignee,)
+        ).fetchone()
+
+        if user:
+            assignee_id = user["user_id"]
+        else:
+            conn.execute(
+                "INSERT INTO users (username) VALUES (?)",
+                (assignee,)
+            )
+            conn.commit()
+
+            user = conn.execute(
+                "SELECT user_id FROM users WHERE username = ?",
+                (assignee,)
+            ).fetchone()
+
+            assignee_id = user["user_id"]
+
+        # CHECK REVIEWER
+        user = conn.execute(
+            "SELECT user_id FROM users WHERE username = ?",
+            (reviewer,)
+        ).fetchone()
+
+        if user:
+            reviewer_id = user["user_id"]
+        else:
+            conn.execute(
+                "INSERT INTO users (username) VALUES (?)",
+                (reviewer,)
+            )
+            conn.commit()
+
+            user = conn.execute(
+                "SELECT user_id FROM users WHERE username = ?",
+                (reviewer,)
+            ).fetchone()
+
+            reviewer_id = user["user_id"]
+
+        # INSERT TASK
         conn.execute("""
             INSERT INTO tasks
             (
@@ -303,8 +344,8 @@ def create_task():
                 description,
                 priority,
                 status,
-                assignee,
-                reviewer,
+                assignee_id,
+                reviewer_id,
                 due_date,
                 created_date,
                 updated_date
@@ -316,8 +357,8 @@ def create_task():
             description,
             priority,
             "To Do",
-            assignee,
-            reviewer,
+            assignee_id,
+            reviewer_id,
             due_date,
             now(),
             now()
@@ -373,6 +414,12 @@ def start_task(task_id):
 
     conn = get_db()
 
+    # GET CURRENT USER ID
+    current_user = conn.execute(
+        "SELECT user_id FROM users WHERE username = ?",
+        (session["user"],)
+    ).fetchone()
+
     # GET TASK
     task = conn.execute(
         "SELECT * FROM tasks WHERE task_id = ?",
@@ -385,7 +432,7 @@ def start_task(task_id):
         return redirect(url_for("all_tasks"))
 
     # CHECK ASSIGNEE
-    if task["assignee"] != session["user"]:
+    if task["assignee_id"] != current_user["user_id"]:
         flash("Only assignee can start task.", "error")
         conn.close()
         return redirect(url_for("all_tasks"))
@@ -409,7 +456,6 @@ def start_task(task_id):
     ))
 
     # INSERT HISTORY
-
     conn.execute("""
         INSERT INTO review_history
         (
@@ -449,6 +495,12 @@ def send_to_review(task_id):
 
     conn = get_db()
 
+    # GET CURRENT USER ID
+    current_user = conn.execute(
+        "SELECT user_id FROM users WHERE username = ?",
+        (session["user"],)
+    ).fetchone()
+
     # GET TASK
     task = conn.execute(
         "SELECT * FROM tasks WHERE task_id = ?",
@@ -461,7 +513,7 @@ def send_to_review(task_id):
         return redirect(url_for("all_tasks"))
 
     # CHECK ASSIGNEE
-    if task["assignee"] != session["user"]:
+    if task["assignee_id"] != current_user["user_id"]:
         flash("Only assignee can send task for review.", "error")
         conn.close()
         return redirect(url_for("all_tasks"))
@@ -542,6 +594,12 @@ def approve_task(task_id):
 
     conn = get_db()
 
+    # GET CURRENT USER ID
+    current_user = conn.execute(
+        "SELECT user_id FROM users WHERE username = ?",
+        (session["user"],)
+    ).fetchone()
+
     # GET TASK
     task = conn.execute(
         "SELECT * FROM tasks WHERE task_id = ?",
@@ -554,7 +612,7 @@ def approve_task(task_id):
         return redirect(url_for("review_tasks"))
 
     # CHECK REVIEWER
-    if task["reviewer"] != session["user"]:
+    if task["reviewer_id"] != current_user["user_id"]:
         flash("Only assigned reviewer can approve.", "error")
         conn.close()
         return redirect(url_for("review_tasks"))
@@ -608,7 +666,6 @@ def approve_task(task_id):
     )
 
     return redirect(url_for("review_tasks"))
-
     
 @app.route("/task/<int:task_id>/reject", methods=["POST"])
 def reject_task(task_id):
@@ -640,6 +697,12 @@ def reject_task(task_id):
 
     conn = get_db()
 
+    # GET CURRENT USER ID
+    current_user = conn.execute(
+        "SELECT user_id FROM users WHERE username = ?",
+        (session["user"],)
+    ).fetchone()
+
     # GET TASK
     task = conn.execute(
         "SELECT * FROM tasks WHERE task_id = ?",
@@ -652,7 +715,7 @@ def reject_task(task_id):
         return redirect(url_for("review_tasks"))
 
     # CHECK REVIEWER
-    if task["reviewer"] != session["user"]:
+    if task["reviewer_id"] != current_user["user_id"]:
         flash("Only assigned reviewer can reject.", "error")
         conn.close()
         return redirect(url_for("review_tasks"))
@@ -767,20 +830,30 @@ def review_tasks():
 
     conn = get_db()
 
+    # GET CURRENT USER ID
+    current_user = conn.execute(
+        "SELECT user_id FROM users WHERE username = ?",
+        (session["user"],)
+    ).fetchone()
+
     # GET TASKS FOR REVIEWER
     tasks = conn.execute("""
-        SELECT * FROM tasks
-        WHERE reviewer = ?
-        AND status = ?
+        SELECT tasks.*,
+               u1.username AS assignee_name,
+               u2.username AS reviewer_name
+        FROM tasks
+        JOIN users u1 ON tasks.assignee_id = u1.user_id
+        JOIN users u2 ON tasks.reviewer_id = u2.user_id
+        WHERE tasks.reviewer_id = ?
+        AND tasks.status = ?
     """,
     (
-        session["user"],
+        current_user["user_id"],
         "In Review"
     )).fetchall()
 
     conn.close()
 
-    # convert SQL rows to dictionary
     review_tasks_list = [dict(task) for task in tasks]
 
     return render_template(
@@ -789,7 +862,5 @@ def review_tasks():
         current_user=session["user"]
     )
 
-print(app.url_map)
-
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True)
